@@ -1,8 +1,8 @@
-# logt
-Logger for Golang projects
+# Logt
+Color logger for golang
 
 
-## Usage
+# Usage
 
 
 ```go
@@ -29,5 +29,11 @@ func main() {
 }
 ```
 
-## Output
+# Output
 ![Output](image.png)
+
+# TODO
+
+- Add writers with format
+- Add writers to file
+- ...
