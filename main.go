@@ -89,48 +89,56 @@ type Writer struct {
 // Data for warning message
 // Color: magenta
 func (w *Writer) Data(str ...any) {
+	checker(str)
 	print(w.nameSpace, data, str...)
 }
 
 // Debug for debugging message
 // Color: cyan
 func (w *Writer) Debug(str ...any) {
+	checker(str)
 	print(w.nameSpace, debug, str...)
 }
 
 // Error for error message
 // Color: red
 func (w *Writer) Error(str ...any) {
+	checker(str)
 	print(w.nameSpace, err, str...)
 }
 
 // Info for info message
 // Color: yellow
 func (w *Writer) Info(str ...any) {
+	checker(str)
 	print(w.nameSpace, info, str...)
 }
 
 // Msg for simple message
 // Color: standard
 func (w *Writer) Msg(str ...any) {
+	checker(str)
 	print(w.nameSpace, msg, str...)
 }
 
 // Succes for success message
 // Color: green
 func (w *Writer) Succes(str ...any) {
+	checker(str)
 	print(w.nameSpace, succes, str...)
 }
 
 // Warning for warning message
 // Color: yellow
 func (w *Writer) Warning(str ...any) {
+	checker(str)
 	print(w.nameSpace, warning, str...)
 }
 
 // Write for just output message
 // Color: standard
 func (w *Writer) Write(str ...any) {
+	checker(str)
 	print(w.nameSpace, msg, str...)
 }
 
@@ -335,4 +343,10 @@ func (w *Writer) funcName(start bool) {
 
 	txt := strings.Repeat(" ", f_len) + w.funcname + strings.Repeat(" ", f_len)
 	p(n, fmt.Sprintf("%s %s", action, color.HiMagentaString(fmt.Sprintf("---> %s <---", txt))))
+}
+
+func checker(str []any) {
+	if len(str) == 0 {
+		panic("logt: empty message")
+	}
 }
