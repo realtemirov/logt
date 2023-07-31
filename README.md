@@ -30,7 +30,7 @@ func main() {
 ```
 
 # Output
-![Output](image.png)
+![Alt text](image.png)
 
 # TODO
 
