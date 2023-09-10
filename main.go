@@ -162,7 +162,7 @@ func (l *detail) NewWriter(functionName string, saveFile bool) IWriter {
 // Close close writer
 func (w *writer) Close() {
 	if w.save {
-		file, err := os.Create(fmt.Sprintf("%s-%s.txt", time.Now().String(), w.funcname))
+		file, err := os.Create(fmt.Sprintf("%s-%s.txt", time.Now().Format("2006-01-02 15:04:05"), w.funcname))
 		if err != nil {
 			w.Error(err)
 		}
@@ -571,8 +571,11 @@ func checkBot(token string, userID int64) (*tgbotapi.User, *tgbotapi.BotAPI, err
 
 func main() {
 	// Create a new logger
-	// nameSpace: The name of the logger
-	// true: Enable show intro message
+	// Token: Telegram Bot token
+	// UserID: Telegram User ID
+	// Logo: Set to true if you want to show logo
+	// NameSpace: Namespace of your project
+	// If you want use Telegrambot set your token and user id, else set to empty
 	l := NewLog(&Log{
 		Token:     "6293373314:AAFVkfHFUowX1FpcRML5frzcAylXEeEMB9I",
 		UserID:    265943548,
@@ -581,6 +584,8 @@ func main() {
 	})
 
 	// Initialize writer logger
+	// functionName: Function name
+	// saveFile: If you set to true, the file will be saved,
 	w := l.NewWriter("item.Create()", true)
 	defer w.Close()
 
@@ -592,12 +597,11 @@ func main() {
 	w.Msg("Hello world")
 	w.Succes("Hello world")
 	w.Warning("Hello world")
-	w.Write("Hello world")
 
 	user := User{
 		Firstname: "Jahongir",
 		Lastname:  "Temirov",
-		Email:     "realtemirov@mail.ru",
+		Email:     "realjakhongir@gmail.com",
 		Password:  "12345678",
 		Address: Address{
 			Country: "Uzbekistan",
@@ -605,7 +609,9 @@ func main() {
 		},
 	}
 
-	w.Send([]any{user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user})
+	// Use w.Send method to send message to telegram
+	w.Send([]any{user, "Hello world!", 123})
+
 }
 
 type User struct {
