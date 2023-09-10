@@ -2,17 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 var (
-	header string = "┌────────────────────────────────────────────────────────────────────┐"
-	bottom string = "│──────────┼─────────────────────────────────────────────────────────│"
-	footer string = "└────────────────────────────────────────────────────────────────────┘"
+	header string = "┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+	bottom string = "│──────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────"
+	footer string = "└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
 )
 
 type logType string
@@ -25,6 +28,7 @@ const (
 	debug   logType = "debug"
 	warning logType = "warning"
 	data    logType = "data"
+	bot     logType = "bot"
 
 	infoColor    color.Attribute = color.FgHiYellow
 	errColor     color.Attribute = color.FgHiRed
@@ -33,121 +37,258 @@ const (
 	debugColor   color.Attribute = color.FgHiCyan
 	warningColor color.Attribute = color.FgHiYellow
 	dataColor    color.Attribute = color.FgHiMagenta
+	botColor     color.Attribute = color.FgHiBlue
 )
 
-// LogData is a struct for creating a new log
-type LogData struct {
-	nameSpace string
+// Types ---------------------------------------------------------------------------------
+
+// Log is a struct for creating a new log implementation
+type Log struct {
+	Token     string
+	UserID    int64
+	Logo      bool
+	NameSpace string
 }
 
-// NewLogData create new log data
+// Writer is a struct for writing logs
+type writer struct {
+	funcname  string
+	nameSpace string
+	userID    int64
+	bot       *tgbotapi.BotAPI
+	txt       strings.Builder
+	save      bool
+}
+
+type detail struct {
+	namespace string
+	userID    int64
+	token     string
+	bot       *tgbotapi.BotAPI
+}
+
+type ILog interface {
+	NewWriter(functionName string, saveFile bool) IWriter
+}
+
+type IWriter interface {
+	Close()
+	Data(str ...any)
+	Debug(str ...any)
+	Error(str ...any)
+	Info(str ...any)
+	Succes(str ...any)
+	Warning(str ...any)
+	Msg(str ...any)
+	Write(str ...any)
+	Send(str ...any)
+}
+
+// Public functions and methods  ---------------------------------------------------------------------------------
+
+// NewLog create new log data
 // namespace - name of namespace
 // intro - show intro
 //
 // Example:
-// logt.NewLogData("namespace", true)
 //
-// logt.NewLogData("namespace", false)
-func NewLogData(namespace string, intro bool) *LogData {
-	if intro {
+// logt.NewLog(log *Log)
+//
+//	type Log struct {
+//	 // Telegram bot token
+//		Token     string = "123456789:ABCDEFGHi-ijklmnop-QRSTUVXYZ"
+//	 // Telegram user ID
+//		UserID     int64 = 9876543210
+//		Logo      bool
+//		NameSpace string
+//	}
+//
+// logt.NewLog("namespace", false)
+func NewLog(log *Log) ILog {
+
+	if log.Logo {
 		show()
 	}
-	return &LogData{
-		nameSpace: namespace,
+
+	if log.Token != "" && log.UserID != 0 {
+		user, tgBot, error := checkBot(log.Token, log.UserID)
+		if error != nil {
+			print(namespace(log.NameSpace), err, false, error)
+			panic(error)
+		} else {
+			print(namespace(log.NameSpace), debug, false, user)
+		}
+		return &detail{
+			namespace: log.NameSpace,
+			userID:    log.UserID,
+			token:     log.Token,
+			bot:       tgBot,
+		}
+	}
+
+	return &detail{
+		namespace: log.NameSpace,
+		userID:    log.UserID,
+		token:     log.Token,
 	}
 }
 
 // NewWriter create new writer
-// We recommend for function name
-// name - name of function
-// Don't forget to close writer
+//
+// Set true if you want to save function logs to a file.
+//
+// Attention!
+//
+// This application may have a slight impact on performance and memory.
+//
+// I recommend that you keep only the essential functions.
 //
 // Example:
-// w := logt.NewLogData("namespace", true).NewWriter("repository.Create()")
+// w := l.NewWriter("repository.Create()",true)
+//
 // defer w.Close()
+//
 // w.Info("some text")
+//
 // w.Error("some text")
-func (l *LogData) NewWriter(name string) *Writer {
-	w := &Writer{funcname: name, nameSpace: namespace(l.nameSpace)}
+//
+// If you set true, it save to a file, "2006-01-02 15:04:05-repository.Create().txt"
+func (l *detail) NewWriter(functionName string, saveFile bool) IWriter {
+	w := &writer{funcname: functionName, nameSpace: namespace(l.namespace), userID: l.userID, bot: l.bot, save: saveFile}
 	w.funcName(true)
 	return w
 }
 
 // Close close writer
-func (w *Writer) Close() {
+func (w *writer) Close() {
+	if w.save {
+		file, err := os.Create(fmt.Sprintf("%s-%s.txt", time.Now().String(), w.funcname))
+		if err != nil {
+			w.Error(err)
+		}
+		defer file.Close()
+
+		file.WriteString("// Generated by logt\n")
+		file.WriteString("// If you print this text, it will be print with color\n")
+		file.WriteString(w.txt.String())
+		w.txt.Reset()
+	}
 	w.funcName(false)
 }
 
-// Writer is a struct for writing logs
-// Don't use this struct directly
-// Don't forget to close writer
-type Writer struct {
-	funcname  string
-	nameSpace string
-}
-
 // Data for warning message
+//
 // Color: magenta
-func (w *Writer) Data(str ...any) {
+func (w *writer) Data(str ...any) {
 	checker(str)
-	print(w.nameSpace, data, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, data, w.save, str...)[1])
+	}
 }
 
 // Debug for debugging message
+//
 // Color: cyan
-func (w *Writer) Debug(str ...any) {
+func (w *writer) Debug(str ...any) {
 	checker(str)
-	print(w.nameSpace, debug, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, debug, w.save, str...)[1])
+	}
 }
 
 // Error for error message
+//
 // Color: red
-func (w *Writer) Error(str ...any) {
+func (w *writer) Error(str ...any) {
 	checker(str)
-	print(w.nameSpace, err, str...)
+	errors.Join()
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, err, w.save, str...)[1])
+	}
 }
 
 // Info for info message
+//
 // Color: yellow
-func (w *Writer) Info(str ...any) {
+func (w *writer) Info(str ...any) {
 	checker(str)
-	print(w.nameSpace, info, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, info, w.save, str...)[1])
+	}
 }
 
 // Msg for simple message
+//
 // Color: standard
-func (w *Writer) Msg(str ...any) {
+func (w *writer) Msg(str ...any) {
 	checker(str)
-	print(w.nameSpace, msg, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, msg, w.save, str...)[1])
+	}
 }
 
 // Succes for success message
+//
 // Color: green
-func (w *Writer) Succes(str ...any) {
+func (w *writer) Succes(str ...any) {
 	checker(str)
-	print(w.nameSpace, succes, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, succes, w.save, str...)[1])
+	}
 }
 
 // Warning for warning message
+//
 // Color: yellow
-func (w *Writer) Warning(str ...any) {
+func (w *writer) Warning(str ...any) {
 	checker(str)
-	print(w.nameSpace, warning, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, warning, w.save, str...)[1])
+	}
 }
 
 // Write for just output message
+//
 // Color: standard
-func (w *Writer) Write(str ...any) {
+func (w *writer) Write(str ...any) {
 	checker(str)
-	print(w.nameSpace, msg, str...)
+	if w.save {
+		w.txt.WriteString(print(w.nameSpace, msg, w.save, str...)[1])
+	}
 }
 
-func print(n string, _type logType, str ...any) {
+// Send log to telegram with userID
+//
+// Integration: telegram
+func (w *writer) Send(str ...any) {
+	checker(str)
+	txt := print(w.nameSpace, bot, w.save, str...)
+	w.txt.WriteString(txt[1])
+	for len(txt[0]) > 4090 {
+		_, error := w.bot.Send(tgbotapi.NewMessage(w.userID, txt[0][0:4090]))
+		txt[0] = txt[0][4090:]
+		if error != nil {
+			w.Error(error.Error())
+		}
+	}
+	_, error := w.bot.Send(tgbotapi.NewMessage(w.userID, txt[0]))
+	if error != nil {
+		w.Error(error.Error())
+	}
+}
+
+// Priveta functions and methods ---------------------------------------------------------------------------------
+func print(n string, _type logType, save bool, str ...any) []string {
 	var (
 		c       color.Color
 		x       string
 		inf     string
+		send    string
+		txt     strings.Builder
+		file    strings.Builder
+		need    bool = false
 		infBool bool = true
+		isError bool = false
 	)
 
 	switch _type {
@@ -157,6 +298,7 @@ func print(n string, _type logType, str ...any) {
 	case err:
 		c = *color.New(errColor)
 		inf = replace(string(err), true)
+		isError = true
 	case msg:
 		c = *color.New(msgColor)
 		inf = replace(string(msg), true)
@@ -172,20 +314,35 @@ func print(n string, _type logType, str ...any) {
 	case data:
 		c = *color.New(dataColor)
 		inf = replace(string(data), true)
+	case bot:
+		c = *color.New(botColor)
+		inf = replace(string(bot), true)
+		need = true
 	}
 
-	p(n, c.Sprint(header))
-	defer p(n, c.Sprint(footer))
+	file.WriteString(p(n, c.Sprint(header)))
 	for i := 0; i < len(str); i++ {
+		if isError {
+			if fmt.Sprintf("%T", str[i]) == "*errors.errorString" {
+				str[i] = str[i].(error).Error()
+			}
+		}
 
 		s := strManual(str[i])
-
 	n:
 		s, x = checkStr(s)
 
 		if s != "" {
 			if i == 0 {
-				p(n, c.Sprint(fmt.Sprintf("│%s│%s│", inf, x)))
+				send = c.Sprint(fmt.Sprintf("│%s│%s", inf, x))
+				if need {
+					txt.WriteString(x)
+				}
+				if save {
+					file.WriteString(p(n, send))
+				} else {
+					p(n, send)
+				}
 				if infBool {
 					inf = replace(inf, false)
 					infBool = false
@@ -195,7 +352,15 @@ func print(n string, _type logType, str ...any) {
 					inf = replace(inf, false)
 					infBool = false
 				}
-				p(n, c.Sprint(fmt.Sprintf("│%s│%s│", inf, x)))
+				send = c.Sprint(fmt.Sprintf("│%s│%s", inf, x))
+				if need {
+					txt.WriteString(x)
+				}
+				if save {
+					file.WriteString(p(n, send))
+				} else {
+					p(n, send)
+				}
 			}
 			goto n
 		} else {
@@ -205,16 +370,34 @@ func print(n string, _type logType, str ...any) {
 					infBool = false
 				}
 			}
-			p(n, c.Sprint(fmt.Sprintf("│%s│%s│", inf, x)))
+			send = c.Sprint(fmt.Sprintf("│%s│%s", inf, x))
+			if need {
+				txt.WriteString(x)
+			}
+			if save {
+				file.WriteString(p(n, send))
+			} else {
+				p(n, send)
+			}
 			if infBool {
 				inf = replace(inf, false)
 				infBool = false
 			}
 		}
 		if i != len(str)-1 {
-			p(n, c.Sprint(bottom))
+			send = c.Sprint(bottom)
+			if need {
+				txt.WriteString(x)
+			}
+			if save {
+				file.WriteString(p(n, send))
+			} else {
+				p(n, send)
+			}
 		}
 	}
+	file.WriteString(p(n, c.Sprint(footer)))
+	return []string{txt.String(), file.String()}
 }
 
 func replace(s string, first bool) string {
@@ -225,13 +408,11 @@ func replace(s string, first bool) string {
 }
 
 func strManual(str any) string {
-	js, err := json.MarshalIndent(str, "", "  ")
+	js, err := json.MarshalIndent(str, "", "    ")
 	if err != nil {
 		panic(err)
 	}
 	s := fmt.Sprintf("%v", string(js))
-	s = strings.ReplaceAll(s, "\n", "")
-	s = strings.ReplaceAll(s, "\t", "    ")
 	return s
 }
 
@@ -239,27 +420,42 @@ func namespace(s string) string {
 	if s == "" {
 		return ""
 	}
-	return color.HiMagentaString("░ %s ░", s)
+	return color.HiWhiteString("| %s |", s)
 }
 
 func checkStr(s string) (string, string) {
 	var x string
-	if len(s) > 55 {
-		x = s[0:55]
-		s = s[55:]
-	} else {
-		x = s
-		s = ""
-	}
-	x = fmt.Sprintf(" %-55s ", x)
 
+	if len(s) > 100 {
+		x = s[0:100]
+		if strings.Contains(x, "\n") {
+			index := strings.Index(x, "\n")
+			x = x[0:index]
+			s = s[index+1:]
+		} else {
+			s = s[100:]
+		}
+	} else {
+
+		if strings.Contains(s, "\n") {
+			index := strings.Index(s, "\n")
+			x = s[0:index]
+			s = s[index+1:]
+		} else {
+			x = s
+			s = ""
+		}
+	}
+	x = fmt.Sprintf(" %-100s ", x)
 	return s, x
 }
 
-func p(namespace, data string) {
+func p(namespace, data string) string {
 	year, month, day := time.Now().Date()
 	hour, min, sec := time.Now().Clock()
-	fmt.Printf("[%d-%02d-%02d %02d:%02d:%02d] %s %s\n", year, month, day, hour, min, sec, namespace, data)
+	s := fmt.Sprintf("[%d-%02d-%02d %02d:%02d:%02d] %s %s\n", year, month, day, hour, min, sec, namespace, data)
+	fmt.Print(s)
+	return s
 }
 
 func show() {
@@ -323,7 +519,7 @@ func show() {
 	reset.Println()
 }
 
-func (w *Writer) funcName(start bool) {
+func (w *writer) funcName(start bool) {
 	var (
 		n      string
 		action string
@@ -336,7 +532,7 @@ func (w *Writer) funcName(start bool) {
 	} else {
 		action = color.HiRedString("::  END  ::")
 	}
-	f_len := (50 - len(w.funcname)) / 2
+	f_len := (90 - len(w.funcname)) / 2
 	if f_len%2 != 0 {
 		f_len++
 	}
@@ -351,24 +547,76 @@ func checker(str []any) {
 	}
 }
 
+func getBot(token string) *tgbotapi.BotAPI {
+	bot, err := tgbotapi.NewBotAPI(token)
+	if err != nil {
+		panic(err)
+	}
+
+	return bot
+}
+
+func checkBot(token string, userID int64) (*tgbotapi.User, *tgbotapi.BotAPI, error) {
+	tgBot := getBot(token)
+	user, err := tgBot.GetMe()
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = tgBot.Send(tgbotapi.NewMessage(userID, "👋 Hello from logt!"))
+	if err != nil {
+		return nil, nil, err
+	}
+	return &user, tgBot, nil
+}
+
 func main() {
 	// Create a new logger
 	// nameSpace: The name of the logger
 	// true: Enable show intro message
-	l := NewLogData("repository", true)
+	l := NewLog(&Log{
+		Token:     "6293373314:AAFVkfHFUowX1FpcRML5frzcAylXEeEMB9I",
+		UserID:    265943548,
+		Logo:      false,
+		NameSpace: "test",
+	})
 
 	// Initialize writer logger
-	w := l.NewWriter("item.Create()")
+	w := l.NewWriter("item.Create()", true)
 	defer w.Close()
 
 	// Write a message
 	w.Data("Hello world")
 	w.Debug("Hello world")
-	w.Error("Hello world")
+	w.Error(errors.New("hello world"))
 	w.Info("Hello world")
 	w.Msg("Hello world")
 	w.Succes("Hello world")
 	w.Warning("Hello world")
 	w.Write("Hello world")
 
+	user := User{
+		Firstname: "Jahongir",
+		Lastname:  "Temirov",
+		Email:     "realtemirov@mail.ru",
+		Password:  "12345678",
+		Address: Address{
+			Country: "Uzbekistan",
+			City:    "Tashkent",
+		},
+	}
+
+	w.Send([]any{user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user, user})
+}
+
+type User struct {
+	Firstname string  `json:"first_name"`
+	Lastname  string  `json:"last_name"`
+	Email     string  `json:"email"`
+	Password  string  `json:"password"`
+	Address   Address `json:"address"`
+}
+
+type Address struct {
+	Country string `json:"country"`
+	City    string `json:"city"`
 }
