@@ -66,10 +66,36 @@ type Address struct {
 ```
 
 # Output
-![image](image.png)
+![console](image.png)
 
+## Telegram Bot
+```
+[
+  {
+    "first_name": "Jahongir",
+    "last_name": "Temirov",
+    "email": "realjakhongir@gmail.com",
+    "password": "12345678",
+    "address": {
+      "country": "Uzbekistan",
+      "city": "Tashkent"
+    }
+  },
+  "Hello world!",
+  123
+]
+```
+
+## File
+#### Filename: 
+2023-09-10 14:42:42-item.Create().txt 
+
+Each function log can be saved as a separate file when the function is finished.
+
+When outputting the file to the console, it will output with the previous colors.
+
+![file](image-1.png)
 # TODO
 
 - Add writers with format
-- Add writers to file
 - ...
