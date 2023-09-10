@@ -64,9 +64,39 @@ type Address struct {
 	City    string `json:"city"`
 }
 ```
-
-# Output
+## Output
 ![console](image.png)
+
+## WithContext
+```go
+func main() {
+    newLogger := logt.NewLog(&Log{NameSpace: "test"})
+    
+	ctx := context.Background()
+    ctx = newLogger.SetContext(ctx,"data", 12345)
+    
+	s := NewServiceA(newLogger)
+}
+
+type myService struct {
+	logger logt.ILog
+}
+
+func NewMyService(logger logt.ILog) *myService {
+    return &myService{
+        logger: logger,
+    }
+}
+
+func (s *myService) myFunction(ctx context.Context) {
+    w := s.logger.NewWriter("myService.myFunction", false) 
+
+	w.Succes("log from myService") // not output to console from context
+    w.FromContext(ctx).Succes("log from myService") // it will output to console from console
+}
+```
+![WithContext](image-2.png)
+
 
 ## Telegram Bot
 ```

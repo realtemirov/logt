@@ -1,6 +1,7 @@
 package logt
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,8 @@ var (
 
 type logType string
 
+type ctxKey string
+
 const (
 	info    logType = "info"
 	err     logType = "error"
@@ -28,6 +31,7 @@ const (
 	debug   logType = "debug"
 	warning logType = "warning"
 	data    logType = "data"
+	withCtx logType = "context"
 	bot     logType = "bot"
 
 	infoColor    color.Attribute = color.FgHiYellow
@@ -38,6 +42,7 @@ const (
 	warningColor color.Attribute = color.FgHiYellow
 	dataColor    color.Attribute = color.FgHiMagenta
 	botColor     color.Attribute = color.FgHiBlue
+	contextKey   ctxKey          = "logt-key"
 )
 
 // Types ---------------------------------------------------------------------------------
@@ -58,6 +63,7 @@ type writer struct {
 	bot       *tgbotapi.BotAPI
 	txt       strings.Builder
 	save      bool
+	ctx       strings.Builder
 }
 
 type detail struct {
@@ -69,6 +75,7 @@ type detail struct {
 
 type ILog interface {
 	NewWriter(functionName string, saveFile bool) IWriter
+	SetContext(ctx context.Context, fields ...any) context.Context
 }
 
 type IWriter interface {
@@ -82,6 +89,7 @@ type IWriter interface {
 	Msg(str ...any)
 	Write(str ...any)
 	Send(str ...any)
+	FromContext(ctx context.Context) IWriter
 }
 
 // Public functions and methods  ---------------------------------------------------------------------------------
@@ -159,6 +167,29 @@ func (l *detail) NewWriter(functionName string, saveFile bool) IWriter {
 	return w
 }
 
+// Set value to context and return context
+func (l *detail) SetContext(ctx context.Context, fields ...any) context.Context {
+
+	str := strings.Builder{}
+	length := len(fields)
+
+	value, ok := ctx.Value(contextKey).(string)
+	if ok {
+		if length > 0 {
+			str.WriteString(value + ", ")
+		} else {
+			str.WriteString(value)
+		}
+	}
+	for i := 0; i < length; i++ {
+		str.WriteString(strManual(fields[i]))
+		if i != length-1 {
+			str.WriteString(", ")
+		}
+	}
+	return context.WithValue(ctx, contextKey, str.String())
+}
+
 // Close close writer
 func (w *writer) Close() {
 	if w.save {
@@ -180,6 +211,9 @@ func (w *writer) Close() {
 //
 // Color: magenta
 func (w *writer) Data(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, data, w.save, str...)[1])
@@ -190,6 +224,9 @@ func (w *writer) Data(str ...any) {
 //
 // Color: cyan
 func (w *writer) Debug(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, debug, w.save, str...)[1])
@@ -200,6 +237,9 @@ func (w *writer) Debug(str ...any) {
 //
 // Color: red
 func (w *writer) Error(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	errors.Join()
 	if w.save {
@@ -211,6 +251,9 @@ func (w *writer) Error(str ...any) {
 //
 // Color: yellow
 func (w *writer) Info(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, info, w.save, str...)[1])
@@ -221,6 +264,9 @@ func (w *writer) Info(str ...any) {
 //
 // Color: standard
 func (w *writer) Msg(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, msg, w.save, str...)[1])
@@ -231,6 +277,9 @@ func (w *writer) Msg(str ...any) {
 //
 // Color: green
 func (w *writer) Succes(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, succes, w.save, str...)[1])
@@ -241,6 +290,9 @@ func (w *writer) Succes(str ...any) {
 //
 // Color: yellow
 func (w *writer) Warning(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, warning, w.save, str...)[1])
@@ -251,6 +303,9 @@ func (w *writer) Warning(str ...any) {
 //
 // Color: standard
 func (w *writer) Write(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	if w.save {
 		w.txt.WriteString(print(w.nameSpace, msg, w.save, str...)[1])
@@ -261,6 +316,9 @@ func (w *writer) Write(str ...any) {
 //
 // Integration: telegram
 func (w *writer) Send(str ...any) {
+	if w.ctx.String() != "" {
+		str = append(str, w.ctx.String())
+	}
 	checker(str)
 	txt := print(w.nameSpace, bot, w.save, str...)
 	w.txt.WriteString(txt[1])
@@ -277,6 +335,24 @@ func (w *writer) Send(str ...any) {
 	}
 }
 
+// Get value from context
+func (w *writer) FromContext(ctx context.Context) IWriter {
+
+	value, ok := ctx.Value(contextKey).(string)
+	if ok {
+		if value != "" {
+			value = string(contextKey) + "-" + value
+		} else {
+			value = string(contextKey) + "-" + "\"value\":\"not found\""
+		}
+	} else {
+		value = string(contextKey) + "-" + "\"value\":\"not found\""
+	}
+
+	w.ctx.WriteString(value)
+	return w
+}
+
 // Priveta functions and methods ---------------------------------------------------------------------------------
 func print(n string, _type logType, save bool, str ...any) []string {
 	var (
@@ -289,6 +365,7 @@ func print(n string, _type logType, save bool, str ...any) []string {
 		need    bool = false
 		infBool bool = true
 		isError bool = false
+		hasCtx  bool = false
 	)
 
 	switch _type {
@@ -322,19 +399,40 @@ func print(n string, _type logType, save bool, str ...any) []string {
 
 	file.WriteString(p(n, c.Sprint(header)))
 	for i := 0; i < len(str); i++ {
+
 		if isError {
 			if fmt.Sprintf("%T", str[i]) == "*errors.errorString" {
 				str[i] = str[i].(error).Error()
 			}
 		}
 
-		s := strManual(str[i])
+		var s string
+
+		value, ok := str[i].(string)
+		if ok {
+			if strings.HasPrefix(value, string(contextKey)) {
+				hasCtx = true
+				s = value[len(string(contextKey)+"-"):]
+			}
+		}
+		if !hasCtx {
+			s = strManual(str[i])
+		}
 	n:
 		s, x = checkStr(s)
 
 		if s != "" {
 			if i == 0 {
+
+				if !infBool {
+					if hasCtx {
+						inf = replace(string(withCtx), true)
+						hasCtx = false
+					}
+				}
+
 				send = c.Sprint(fmt.Sprintf("│%s│%s", inf, x))
+				inf = replace(inf, false)
 				if need {
 					txt.WriteString(x)
 				}
@@ -346,13 +444,22 @@ func print(n string, _type logType, save bool, str ...any) []string {
 				if infBool {
 					inf = replace(inf, false)
 					infBool = false
+					hasCtx = false
 				}
 			} else {
 				if infBool {
 					inf = replace(inf, false)
 					infBool = false
+					hasCtx = false
+				}
+				if !infBool {
+					if hasCtx {
+						inf = replace(string(withCtx), true)
+						hasCtx = false
+					}
 				}
 				send = c.Sprint(fmt.Sprintf("│%s│%s", inf, x))
+				inf = replace(inf, false)
 				if need {
 					txt.WriteString(x)
 				}
@@ -368,9 +475,18 @@ func print(n string, _type logType, save bool, str ...any) []string {
 				if infBool {
 					inf = replace(inf, false)
 					infBool = false
+					hasCtx = false
+				}
+			}
+
+			if !infBool {
+				if hasCtx {
+					inf = replace(string(withCtx), true)
+					hasCtx = false
 				}
 			}
 			send = c.Sprint(fmt.Sprintf("│%s│%s", inf, x))
+			inf = replace(inf, false)
 			if need {
 				txt.WriteString(x)
 			}
@@ -382,6 +498,7 @@ func print(n string, _type logType, save bool, str ...any) []string {
 			if infBool {
 				inf = replace(inf, false)
 				infBool = false
+				hasCtx = false
 			}
 		}
 		if i != len(str)-1 {
