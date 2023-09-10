@@ -9,20 +9,20 @@ Color logger for golang
 func main() {
 	// Create a new logger
 	// Token: Telegram Bot token
-    // UserID: Telegram User ID
+    	// UserID: Telegram User ID
 	// Logo: Set to true if you want to show logo
-    // NameSpace: Namespace of your project
-    // If you want use Telegrambot set your token and user id, else set to empty
+    	// NameSpace: Namespace of your project
+    	// If you want use Telegrambot set your token and user id, else set to empty
 	l := NewLog(&Log{
-		Token:     "6293373314:AAFVkfHFUowX1FpcRML5frzcAylXEeEMB9I",
+		Token:     "1234567890:ABCDEFGHIowX1FpcRML5frzcAylXEeEMB9I",
 		UserID:    265943548,
 		Logo:      false,
 		NameSpace: "test",
 	})
 
 	// Initialize writer logger
-    // functionName: Function name
-    // saveFile: If you set to true, the file will be saved, 
+    	// functionName: Function name
+    	// saveFile: If you set to true, the file will be saved, 
 	w := l.NewWriter("item.Create()", true)
 	defer w.Close()
 
@@ -46,7 +46,7 @@ func main() {
 		},
 	}
 
-    // Use w.Send method to send message to telegram
+    	// Use w.Send method to send message to telegram
 	w.Send([]any{user, "Hello world!", 123})
 
 }
