@@ -53,10 +53,11 @@ type Log struct {
 	UserID    int64
 	Logo      bool
 	NameSpace string
+	bot       *tgbotapi.BotAPI
 }
 
 // Writer is a struct for writing logs
-type writer struct {
+type Writer struct {
 	funcname  string
 	nameSpace string
 	userID    int64
@@ -64,32 +65,6 @@ type writer struct {
 	txt       strings.Builder
 	save      bool
 	ctx       strings.Builder
-}
-
-type detail struct {
-	namespace string
-	userID    int64
-	token     string
-	bot       *tgbotapi.BotAPI
-}
-
-type ILog interface {
-	NewWriter(functionName string, saveFile bool) IWriter
-	SetContext(ctx context.Context, fields ...any) context.Context
-}
-
-type IWriter interface {
-	Close()
-	Data(str ...any)
-	Debug(str ...any)
-	Error(str ...any)
-	Info(str ...any)
-	Succes(str ...any)
-	Warning(str ...any)
-	Msg(str ...any)
-	Write(str ...any)
-	Send(str ...any)
-	FromContext(ctx context.Context) IWriter
 }
 
 // Public functions and methods  ---------------------------------------------------------------------------------
@@ -112,7 +87,7 @@ type IWriter interface {
 //	}
 //
 // logt.NewLog("namespace", false)
-func NewLog(log *Log) ILog {
+func NewLog(log *Log) *Log {
 
 	if log.Logo {
 		show()
@@ -126,18 +101,21 @@ func NewLog(log *Log) ILog {
 		} else {
 			print(namespace(log.NameSpace), debug, false, user)
 		}
-		return &detail{
-			namespace: log.NameSpace,
-			userID:    log.UserID,
-			token:     log.Token,
+		return &Log{
+			Token:     log.Token,
+			UserID:    log.UserID,
+			Logo:      log.Logo,
+			NameSpace: log.NameSpace,
 			bot:       tgBot,
 		}
 	}
 
-	return &detail{
-		namespace: log.NameSpace,
-		userID:    log.UserID,
-		token:     log.Token,
+	return &Log{
+		Token:     log.Token,
+		UserID:    log.UserID,
+		Logo:      log.Logo,
+		NameSpace: log.NameSpace,
+		bot:       nil,
 	}
 }
 
@@ -161,14 +139,14 @@ func NewLog(log *Log) ILog {
 // w.Error("some text")
 //
 // If you set true, it save to a file, "2006-01-02 15:04:05-repository.Create().txt"
-func (l *detail) NewWriter(functionName string, saveFile bool) IWriter {
-	w := &writer{funcname: functionName, nameSpace: namespace(l.namespace), userID: l.userID, bot: l.bot, save: saveFile}
+func (l *Log) NewWriter(functionName string, saveFile bool) *Writer {
+	w := &Writer{funcname: functionName, nameSpace: namespace(l.NameSpace), userID: l.UserID, bot: l.bot, save: saveFile}
 	w.funcName(true)
 	return w
 }
 
 // Set value to context and return context
-func (l *detail) SetContext(ctx context.Context, fields ...any) context.Context {
+func (l *Log) SetContext(ctx context.Context, fields ...any) context.Context {
 
 	str := strings.Builder{}
 	length := len(fields)
@@ -191,7 +169,7 @@ func (l *detail) SetContext(ctx context.Context, fields ...any) context.Context 
 }
 
 // Close close writer
-func (w *writer) Close() {
+func (w *Writer) Close() {
 	if w.save {
 		file, err := os.Create(fmt.Sprintf("%s-%s.txt", time.Now().Format("2006-01-02 15:04:05"), w.funcname))
 		if err != nil {
@@ -210,7 +188,7 @@ func (w *writer) Close() {
 // Data for warning message
 //
 // Color: magenta
-func (w *writer) Data(str ...any) {
+func (w *Writer) Data(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -223,7 +201,7 @@ func (w *writer) Data(str ...any) {
 // Debug for debugging message
 //
 // Color: cyan
-func (w *writer) Debug(str ...any) {
+func (w *Writer) Debug(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -236,7 +214,7 @@ func (w *writer) Debug(str ...any) {
 // Error for error message
 //
 // Color: red
-func (w *writer) Error(str ...any) {
+func (w *Writer) Error(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -250,7 +228,7 @@ func (w *writer) Error(str ...any) {
 // Info for info message
 //
 // Color: yellow
-func (w *writer) Info(str ...any) {
+func (w *Writer) Info(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -263,7 +241,7 @@ func (w *writer) Info(str ...any) {
 // Msg for simple message
 //
 // Color: standard
-func (w *writer) Msg(str ...any) {
+func (w *Writer) Msg(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -276,7 +254,7 @@ func (w *writer) Msg(str ...any) {
 // Succes for success message
 //
 // Color: green
-func (w *writer) Succes(str ...any) {
+func (w *Writer) Succes(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -289,7 +267,7 @@ func (w *writer) Succes(str ...any) {
 // Warning for warning message
 //
 // Color: yellow
-func (w *writer) Warning(str ...any) {
+func (w *Writer) Warning(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -302,7 +280,7 @@ func (w *writer) Warning(str ...any) {
 // Write for just output message
 //
 // Color: standard
-func (w *writer) Write(str ...any) {
+func (w *Writer) Write(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -315,7 +293,7 @@ func (w *writer) Write(str ...any) {
 // Send log to telegram with userID
 //
 // Integration: telegram
-func (w *writer) Send(str ...any) {
+func (w *Writer) Send(str ...any) {
 	if w.ctx.String() != "" {
 		str = append(str, w.ctx.String())
 	}
@@ -336,7 +314,7 @@ func (w *writer) Send(str ...any) {
 }
 
 // Get value from context
-func (w *writer) FromContext(ctx context.Context) IWriter {
+func (w *Writer) FromContext(ctx context.Context) *Writer {
 
 	value, ok := ctx.Value(contextKey).(string)
 	if ok {
@@ -636,7 +614,7 @@ func show() {
 	reset.Println()
 }
 
-func (w *writer) funcName(start bool) {
+func (w *Writer) funcName(start bool) {
 	var (
 		n      string
 		action string
