@@ -456,7 +456,6 @@ func print(n string, _type logType, save bool, str ...any) []string {
 				if save {
 					file.WriteString(p(n, send))
 				} else {
-					fmt.Println(1)
 					p(n, send)
 				}
 				if infBool {
