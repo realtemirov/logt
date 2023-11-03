@@ -13,10 +13,12 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+const limit int = 80
+
 var (
-	header string = "┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
-	bottom string = "│──────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────"
-	footer string = "└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+	header string = "┌────────────────────────────────────────────────────────────────────────────────────────────────────"
+	bottom string = "│──────────┼─────────────────────────────────────────────────────────────────────────────────────────"
+	footer string = "└────────────────────────────────────────────────────────────────────────────────────────────────────"
 )
 
 type logType string
@@ -560,14 +562,14 @@ func namespace(s string) string {
 func checkStr(s string) (string, string) {
 	var x string
 
-	if len(s) > 75 {
-		x = s[0:75]
+	if len(s) > limit {
+		x = s[0:limit]
 		if strings.Contains(x, "\n") {
 			index := strings.Index(x, "\n")
 			x = x[0:index]
 			s = s[index+1:]
 		} else {
-			s = s[75:]
+			s = s[limit:]
 		}
 	} else {
 
@@ -666,7 +668,7 @@ func (w *writer) funcName(start bool) {
 	} else {
 		action = color.HiRedString("::  END  ::")
 	}
-	f_len := (90 - len(w.funcname)) / 2
+	f_len := (limit - len(w.funcname)) / 2
 	if f_len%2 != 0 {
 		f_len++
 	}
